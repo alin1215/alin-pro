@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+           http://www.springframework.org/schema/beans/spring-beans.xsd
+           http://www.springframework.org/schema/tx
+           http://www.springframework.org/schema/tx/spring-tx.xsd
+           http://www.springframework.org/schema/aop
+           http://www.springframework.org/schema/aop/spring-aop.xsd
+           http://www.springframework.org/schema/context
+           http://www.springframework.org/schema/context/spring-context.xsd">
+
+    <tx:annotation-driven transaction-manager="chainedTM"/>
+
+    <context:component-scan base-package="com.quanxian.demo.mapper"/>
+
+
+    <bean id="masterDatasource" class="com.alibaba.druid.pool.DruidDataSource"
+          init-method="init" destroy-method="close">
+        <property name="dbType" value="mysql"/>
+        <property name="url" value="${spring.datasource.url}"/>
+
+        <property name="driverClassName" value="${spring.datasource.driver-class-name}"/>
+
+        <property name="username" value="${spring.datasource.username}"/>
+        <property name="password" value="${spring.datasource.password}"/>
+
+        <property name="initialSize" value="5"/>
+        <property name="maxActive" value="10"/>
+        <!-- 配置获取连接等待超时的时间 -->
+        <property name="maxWait" value="60000"/>
+        <!-- 配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒 -->
+        <property name="timeBetweenEvictionRunsMillis" value="60000"/>
+        <!-- 配置一个连接在池中最小生存的时间，单位是毫秒 -->
+        <property name="minEvictableIdleTimeMillis" value="300000"/>
+        <property name="testWhileIdle" value="true"/>
+        <property name="testOnBorrow" value="false"/>
+        <property name="testOnReturn" value="false"/>
+        <!-- 打开PSCache，并且指定每个连接上PSCache的大小 -->
+        <property name="poolPreparedStatements" value="false"/>
+        <!-- <property name="maxPoolPreparedStatementPerConnectionSize" value="20" /> -->
+        <property name="proxyFilters">
+            <list>
+                <ref bean="wall-filter"/>
+            </list>
+        </property>
+    </bean>
+
+    <bean id="slaveDatasource" class="com.alibaba.druid.pool.DruidDataSource"
+          init-method="init" destroy-method="close">
+
+        <property name="dbType" value="mysql"/>
+        <property name="url" value="${slave.datasource.url}"/>
+
+
+        <property name="driverClassName" value="${slave.datasource.driver-class-name}"/>
+
+        <property name="username" value="${slave.datasource.username}"/>
+        <property name="password" value="${slave.datasource.password}"/>
+
+        <property name="initialSize" value="5"/>
+        <property name="maxActive" value="10"/>
+        <!-- 配置获取连接等待超时的时间 -->
+        <property name="maxWait" value="60000"/>
+        <!-- 配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒 -->
+        <property name="timeBetweenEvictionRunsMillis" value="60000"/>
+        <!-- 配置一个连接在池中最小生存的时间，单位是毫秒 -->
+        <property name="minEvictableIdleTimeMillis" value="300000"/>
+        <property name="testWhileIdle" value="true"/>
+        <property name="testOnBorrow" value="false"/>
+        <property name="testOnReturn" value="false"/>
+        <!-- 打开PSCache，并且指定每个连接上PSCache的大小 -->
+        <property name="poolPreparedStatements" value="false"/>
+        <!-- <property name="maxPoolPreparedStatementPerConnectionSize" value="20" /> -->
+        <property name="proxyFilters">
+            <list>
+                <ref bean="wall-filter"/>
+            </list>
+        </property>
+    </bean>
+
+
+
+
+    <bean id="wall-filter" class="com.alibaba.druid.wall.WallFilter">
+        <property name="config" ref="wall-config"/>
+    </bean>
+
+    <bean id="wall-config" class="com.alibaba.druid.wall.WallConfig">
+        <property name="multiStatementAllow" value="true"/>
+    </bean>
+
+    <bean id="masterTM" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="masterDatasource"/>
+    </bean>
+    <bean id="slaveTM" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="slaveDatasource"/>
+    </bean>
+
+    <bean id="chainedTM" class="org.springframework.data.transaction.ChainedTransactionManager">
+        <constructor-arg>
+            <list>
+                <ref bean="masterTM"></ref>
+                <ref bean="slaveTM"></ref>
+            </list>
+        </constructor-arg>
+    </bean>
+
+    <bean id="masterSqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <property name="dataSource" ref="masterDatasource"/>
+        <property name="configuration">
+            <bean class="org.apache.ibatis.session.Configuration">
+                <!-- 给予被嵌套的resultMap以字段-属性的映射支持 -->
+                <property name="autoMappingBehavior" value="FULL"/>
+            </bean>
+        </property>
+        <property name="mapperLocations">
+            <list>
+                <value>classpath*:mapper/*</value>
+            </list>
+        </property>
+    </bean>
+
+
+    <bean id="slaveSqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <property name="dataSource" ref="slaveDatasource"/>
+        <property name="configuration">
+            <bean class="org.apache.ibatis.session.Configuration">
+                <!-- 给予被嵌套的resultMap以字段-属性的映射支持 -->
+                <property name="autoMappingBehavior" value="FULL"/>
+            </bean>
+        </property>
+        <property name="mapperLocations">
+            <list>
+                <value>classpath*:mapper/*</value>
+            </list>
+        </property>
+    </bean>
+
+
+
+    <bean id="mapperScannerConfigurer" class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="annotationClass" value="org.springframework.stereotype.Repository"/>
+        <property name="basePackage" value="com.wecash,net.wecash"/>
+        <property name="sqlSessionTemplateBeanName" value="sqlSessionTemplate"/>
+    </bean>
+
+
+    <bean id="sqlSessionTemplate" class="com.quanxian.demo.datasource.CustomSqlSessionTemplate">
+        <constructor-arg ref="masterSqlSessionFactory" />
+        <property name="targetSqlSessionFactorys">
+            <map>
+                <!-- write -->
+                <entry key="MasterDB" value-ref="masterSqlSessionFactory"/>
+                <!-- read -->
+                <entry key="SlaveDB" value-ref="slaveSqlSessionFactory"/>
+
+            </map>
+        </property>
+    </bean>
+
+
+</beans>
