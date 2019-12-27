@@ -24,6 +24,7 @@ import java.util.Map;
 
 @SpringBootApplication(exclude = {DataSourceAutoConfiguration.class})
 @EnableTransactionManagement
+
 @MapperScan("com.data.masterandslave.mapper")
 public class QuanxianMasterSlaveApplication {
 
